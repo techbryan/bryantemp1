@@ -1,0 +1,243 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.HelpBuilder = exports._CATEGORIES = void 0;
+const discord_js_1 = require("discord.js");
+const theme_1 = require("../../../core/config/theme");
+const assets_config_1 = require("../../../core/config/assets.config");
+const HELP_BANNER_URL = "https://cdn.discordapp.com/attachments/1561728051186892800/1561737461015777301/Dhw3jjP5.gif?ex=6ad770da&is=6ad61f5a&hm=4e565f1d0d9433c45a1f0b46fc33426f158950c7d275265adf65a40b789e2fcf";
+const COMMANDS_PER_PAGE = 6;
+const parseEmoji = (emojiStr) => {
+    if (!emojiStr)
+        return undefined;
+    const match = emojiStr.match(/<a?:(\w+):(\d+)>/);
+    if (match && match[1] && match[2]) {
+        return { name: match[1], id: match[2], animated: emojiStr.startsWith("<a:") };
+    }
+    return emojiStr;
+};
+exports._CATEGORIES = [
+    {
+        id: "voice",
+        name: "Voice Control",
+        description: "Manage and control your active voice room",
+        commands: [
+            { name: "lock", description: "Lock your voice channel from others" },
+            { name: "unlock", description: "Unlock channel to allow everyone" },
+            { name: "hide", description: "Make channel invisible to others" },
+            { name: "unhide", description: "Make channel visible again" },
+            { name: "permit", usage: "@user | ID", description: "Allow user to join locked channel" },
+            { name: "reject", usage: "@user | ID", description: "Block & disconnect user from channel" },
+            { name: "kick", usage: "@user | ID", description: "Disconnect user from voice channel" },
+            { name: "mute", usage: "@user | ID", description: "Server mute user in channel" },
+            { name: "unmute", usage: "@user | ID", description: "Server unmute user in channel" },
+            { name: "deafen", usage: "@user | ID", description: "Server deafen user in channel" },
+            { name: "tlock", description: "Lock text chat for everyone except managers & permitted" },
+            { name: "tunlock", description: "Unlock text chat for everyone" },
+            { name: "tmute", usage: "@user | ID", description: "Mute text chat for a specific user" },
+            { name: "tunmute", usage: "@user | ID", description: "Unmute text chat for a specific user" },
+            { name: "limit", usage: "<0-99>", description: "Set member limit for voice room" },
+            { name: "name", usage: "<newname>", description: "Change your voice room name" },
+            { name: "status", usage: "<status>", description: "Set custom status text for voice channel" },
+            { name: "bitrate", usage: "<8-384>", description: "Adjust voice audio bitrate in kbps" },
+            { name: "region", usage: "<location>", description: "Change voice server RTC region" },
+            { name: "fixlag", description: "Reset voice server region optimization" },
+            { name: "info", description: "View detailed room statistics" },
+            { name: "panel", description: "Send interactive voice control panel" }
+        ]
+    },
+    {
+        id: "ownership",
+        name: "Ownership & Managers",
+        description: "Room ownership and manager controls",
+        commands: [
+            { name: "owner", usage: "[@user]", description: "View owner or transfer ownership" },
+            { name: "claim", description: "Claim channel if owner has left" },
+            { name: "unclaim", description: "Restore ownership to original owner" },
+            { name: "man add", usage: "@user | ID", description: "Add a temporary manager (max 3)", aliases: ["cowner add"] },
+            { name: "man remove", usage: "@user | ID", description: "Remove a temporary manager", aliases: ["cowner remove"] },
+            { name: "man list", description: "List active channel managers", aliases: ["cowner list"] },
+            { name: "trusted add", usage: "@user | ID", description: "Save permanent room trusted manager" },
+            { name: "trusted remove", usage: "@user | ID", description: "Remove permanent room trusted manager" },
+            { name: "trusted list", description: "List your permanent trusted managers" }
+        ]
+    },
+    {
+        id: "lists",
+        name: "Whitelist & Blacklist",
+        description: "Manage channel access and blacklist preferences",
+        commands: [
+            { name: "wl add", usage: "@user | ID", description: "Add user to auto-permitted whitelist" },
+            { name: "wl remove", usage: "@user | ID", description: "Remove user from room whitelist" },
+            { name: "wl list", description: "View all whitelisted users" },
+            { name: "wl clear", description: "Clear all whitelisted users" },
+            { name: "bl add", usage: "@user | ID", description: "Add user to permanent blacklist" },
+            { name: "bl remove", usage: "@user | ID", description: "Remove user from permanent blacklist" },
+            { name: "bl list", description: "List all users in your blacklist" }
+        ]
+    },
+    {
+        id: "shortcuts",
+        name: "Custom Aliases",
+        description: "Personal command shortcuts accessible by anyone",
+        commands: [
+            { name: "alias add", usage: "<shortcut> <command>", description: "Create personal shortcut (e.g. .v alias add l lock)" },
+            { name: "alias remove", usage: "<shortcut>", description: "Delete personal shortcut" },
+            { name: "alias list", description: "List all your personal shortcuts" }
+        ]
+    },
+    {
+        id: "management",
+        name: "Server Setup & Admin",
+        description: "Administrator configuration commands",
+        commands: [
+            { name: "setup", description: "Open One Tap creation setup interface" },
+            { name: "setbot", description: "Customize bot avatar, banner, bio & panel" },
+            { name: "ping", description: "Check bot respond speed, API latency & database speed" },
+            { name: "join", usage: "@bot <channel_id>", description: "Make bot join voice 24/7 persistently" },
+            { name: "theme", usage: "<#hex>", description: "Set server custom accent theme color" },
+            { name: "panelimage", usage: "<url|file>", description: "Set custom banner image for panels" },
+            { name: "game add", usage: "@role <Name> [emoji]", description: "Add game mention role to select menu" },
+            { name: "game remove", usage: "<name>", description: "Remove game from select menu" },
+            { name: "game list", description: "List configured server game roles" },
+            { name: "music add", usage: "@Bot <prefix>", description: "Register global music bot in server" },
+            { name: "music remove", usage: "@Bot | ID", description: "Remove global music bot from registry" },
+            { name: "music list", description: "List registered global music bots" },
+            { name: "tap", description: "Quickly join creation channel" }
+        ]
+    }
+];
+class HelpBuilder {
+    static async buildHelpPayload(guildId, categoryId = "home", pageIndex = 0, prefix = ".v ") {
+        const isHome = categoryId === "home";
+        const category = exports._CATEGORIES.find((c) => c.id === categoryId);
+        const color = await theme_1.ThemeManager.getColor(guildId);
+        const resolvedColor = color ? (0, discord_js_1.resolveColor)(color) : null;
+        const container = new discord_js_1.ContainerBuilder();
+        if (resolvedColor)
+            container.setAccentColor(resolvedColor);
+        const totalCommands = exports._CATEGORIES.reduce((acc, c) => acc + c.commands.length, 0);
+        const totalCategories = exports._CATEGORIES.length;
+        const categoryOptions = [
+            new discord_js_1.StringSelectMenuOptionBuilder()
+                .setLabel("Overview / Home")
+                .setValue("home")
+                .setDescription("View main bot info and category overview")
+                .setDefault(isHome),
+            ...exports._CATEGORIES.map((cat) => {
+                return new discord_js_1.StringSelectMenuOptionBuilder()
+                    .setLabel(`${cat.name} (${cat.commands.length})`)
+                    .setValue(cat.id)
+                    .setDescription(cat.description.slice(0, 50))
+                    .setDefault(cat.id === categoryId);
+            })
+        ];
+        if (isHome || !category) {
+            const categoryMenu = new discord_js_1.StringSelectMenuBuilder()
+                .setCustomId("help:category_select")
+                .setPlaceholder("Choose a category to browse...")
+                .addOptions(categoryOptions);
+            const authorButton = new discord_js_1.ButtonBuilder()
+                .setStyle(discord_js_1.ButtonStyle.Link)
+                .setLabel("Bryan")
+                .setURL("https://discord.com/users/1544753909950849164");
+            container
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`# <a:sparkles:1561727126544195584> **__Welcome to Bryan Temp__**`))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addMediaGalleryComponents(new discord_js_1.MediaGalleryBuilder().addItems(new discord_js_1.MediaGalleryItemBuilder().setURL(HELP_BANNER_URL)))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`- **__Prefix:__** \`${prefix.trim()}\` • **__Categories:__** \`${totalCategories}\` • **__Commands:__** \`${totalCommands}\``))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addActionRowComponents(new discord_js_1.ActionRowBuilder().addComponents(categoryMenu))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addSectionComponents(new discord_js_1.SectionBuilder()
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent("> **Writed by Bryan  •  ブライアン  •  作者：布莱恩**"))
+                .setButtonAccessory(authorButton));
+        }
+        else {
+            const totalPages = Math.ceil(category.commands.length / COMMANDS_PER_PAGE);
+            const currentPage = Math.min(Math.max(0, pageIndex), totalPages - 1);
+            const start = currentPage * COMMANDS_PER_PAGE;
+            const currentCommands = category.commands.slice(start, start + COMMANDS_PER_PAGE);
+            const commandsList = currentCommands.map((cmd) => `**__\`${prefix}${cmd.name}\`__** ${cmd.usage ? `\`${cmd.usage}\`` : ""}${cmd.aliases?.length ? ` \`(${cmd.aliases.map((a) => `${prefix}${a}`).join(", ")})\`` : ""}\n` +
+                `> *__${cmd.description || "No description provided."}__*`).join("\n\n");
+            const prevEmojiResolvable = parseEmoji(assets_config_1.SystemEmojis.PREV);
+            const nextEmojiResolvable = parseEmoji(assets_config_1.SystemEmojis.NEXT);
+            const homeEmojiResolvable = parseEmoji(assets_config_1.SystemEmojis.KUROMI_SLEEP);
+            const prevButton = new discord_js_1.ButtonBuilder()
+                .setCustomId(`help:page:${category.id}:${currentPage - 1}`)
+                .setStyle(discord_js_1.ButtonStyle.Secondary)
+                .setDisabled(currentPage === 0);
+            if (prevEmojiResolvable)
+                prevButton.setEmoji(prevEmojiResolvable);
+            const nextButton = new discord_js_1.ButtonBuilder()
+                .setCustomId(`help:page:${category.id}:${currentPage + 1}`)
+                .setStyle(discord_js_1.ButtonStyle.Secondary)
+                .setDisabled(currentPage >= totalPages - 1);
+            if (nextEmojiResolvable)
+                nextButton.setEmoji(nextEmojiResolvable);
+            const homeButton = new discord_js_1.ButtonBuilder()
+                .setCustomId("help:home")
+                .setLabel("Main Menu")
+                .setStyle(discord_js_1.ButtonStyle.Secondary);
+            if (homeEmojiResolvable)
+                homeButton.setEmoji(homeEmojiResolvable);
+            container
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`# __${category.name} Commands__\n` +
+                `*Page ${currentPage + 1} of ${totalPages} • Total: ${category.commands.length} commands*`))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(commandsList))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addActionRowComponents(new discord_js_1.ActionRowBuilder().addComponents(prevButton, nextButton, homeButton))
+                .addActionRowComponents(new discord_js_1.ActionRowBuilder().addComponents(new discord_js_1.StringSelectMenuBuilder()
+                .setCustomId("help:category_select")
+                .setPlaceholder("Switch to another category")
+                .addOptions(categoryOptions)))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true));
+        }
+        return {
+            flags: discord_js_1.MessageFlags.IsComponentsV2,
+            components: [container],
+            allowedMentions: { parse: [] }
+        };
+    }
+    static async buildSearchPayload(guildId, query, prefix = ".v ") {
+        const searchQuery = query.toLowerCase().trim();
+        const color = await theme_1.ThemeManager.getColor(guildId);
+        const resolvedColor = color ? (0, discord_js_1.resolveColor)(color) : null;
+        const allCommands = [];
+        for (const cat of exports._CATEGORIES) {
+            for (const cmd of cat.commands) {
+                if (cmd.name.toLowerCase().includes(searchQuery) ||
+                    cmd.description.toLowerCase().includes(searchQuery)) {
+                    allCommands.push({ catName: cat.name, cmd });
+                }
+            }
+        }
+        const container = new discord_js_1.ContainerBuilder();
+        if (resolvedColor)
+            container.setAccentColor(resolvedColor);
+        if (allCommands.length === 0) {
+            container
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`# <a:sadkuromi:1546983181125689374> __No Results Found__\n\n` +
+                `> *No commands found matching \`${query}\`*`))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`> *Use \`${prefix.trim()}\` for the main menu*`));
+        }
+        else {
+            const resultsList = allCommands.slice(0, 6).map(({ catName, cmd }) => `**__\`${prefix}${cmd.name}\`__** \`(${catName})\`\n` +
+                `> *__${cmd.description || "No description provided."}__*`).join("\n\n");
+            container
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`# <a:cyan1:1546983184950894742> __Search Results for "${query}"__`))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(resultsList))
+                .addSeparatorComponents(new discord_js_1.SeparatorBuilder().setDivider(true))
+                .addTextDisplayComponents(new discord_js_1.TextDisplayBuilder().setContent(`> *Use \`${prefix.trim()}\` for the main menu*`));
+        }
+        return {
+            flags: discord_js_1.MessageFlags.IsComponentsV2,
+            components: [container],
+            allowedMentions: { parse: [] }
+        };
+    }
+}
+exports.HelpBuilder = HelpBuilder;
